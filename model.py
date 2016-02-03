@@ -25,14 +25,15 @@ def load_feature_dataset():
 df_train_product_desc, df_test_product_desc = load_feature_dataset()
 
 # Dropping off unnecessary features.
-df_train_product_desc = df_train_product_desc.drop(['search_term','product_title','product_description','product_info'],axis=1)
-df_test_product_desc = df_test_product_desc.drop(['search_term','product_title','product_description','product_info'],axis=1)
+df_train_product_desc = df_train_product_desc.drop(['search_term','product_title','product_description'],axis=1)
+df_test_product_desc = df_test_product_desc.drop(['search_term','product_title','product_description'],axis=1)
 
 # Stroing id in temporary variable, later used during generating submission file.
 id_test = df_test_product_desc['id']
 
-
-features = ['product_uid', 'len_of_query', 'word_in_title', 'word_in_description']
+features = ['product_uid', "search_tokens_count", "title_tokens_count", "description_tokens_count", 
+            "search_tokens_in_title", "search_tokens_in_description", "prefix_match_in_title", 
+            "second_match_in_title", "suffix_match_in_title"]
 
 print ("Total dataset length: {0}".format(len(df_train_product_desc)))
 
@@ -53,6 +54,7 @@ for k, (train_index, test_index) in enumerate(kfold):
     y_pred = clf.predict(X_test)
     
     print ("Fold-[{0}] evaulation score: {1}".format(k, r2_score(y_test, y_pred)))
+
 
 #y_train = df_train_product_desc['relevance'].values
 #X_train = df_train_product_desc.drop(['id','relevance'],axis=1).values

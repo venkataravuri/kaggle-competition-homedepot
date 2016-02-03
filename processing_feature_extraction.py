@@ -7,7 +7,7 @@ Created on Tue Feb  2 14:47:06 2016
 # import required libraries
 import time
 import pandas as pd
-import pickle
+import re
 import numpy as np
 
 def load_clean_data():
@@ -20,38 +20,60 @@ def load_clean_data():
     print ("Loading cleaned datasets took %.2f minutes." % ((time.time() - start_time) / 60.))
     return (df_train_product_desc, df_test_product_desc)
 
-def str_common_word(str1, str2):
-	str1, str2 = str1.lower(), str2.lower()
-	words, cnt = str1.split(), 0
-	for word in words:
-		if str2.find(word)>=0:
-			cnt+=1
-	return cnt
 
-def generate_features(df_dataset):
+
+def extract_text_features(data):
     print ("Generating custom feature...")
     start_time = time.time()
-    # TODO: Refactor
 
-    df_dataset.search_term = df_dataset.search_term.astype(np.str)
-
-    df_dataset['len_of_query'] = df_dataset.search_term.map(lambda x:len(x.split())).astype(np.int64)
+    token_pattern = re.compile(r"(?u)\b\w\w+\b")
     
-    df_dataset['product_info'] = df_dataset.search_term + '\t' + df_dataset.product_title + '\t' + df_dataset.product_description
+    search_tokens_count = 0.0
+    data["search_tokens_count"] = 0.0
+    data["title_tokens_count"] = 0.0
+    data["description_tokens_count"] = 0.0
     
-    df_dataset['word_in_title'] = df_dataset.product_info.map(lambda x:str_common_word(x.split('\t')[0],x.split('\t')[1]))
-       
-    df_dataset['word_in_description'] = df_dataset.product_info.map(lambda x:str_common_word(x.split('\t')[0],x.split('\t')[2]))
+    data["search_tokens_in_title"] = 0.0
+    data["search_tokens_in_description"] = 0.0
+    
+    data["prefix_match_in_title"] = False
+    data["second_match_in_title"] = False
+    data["suffix_match_in_title"] = False
+    
+    for i, row in data.iterrows():
+        search_term = set(x.lower() for x in token_pattern.findall(row["search_term"]))
+        search_tokens_count = len(search_term)
+        data.set_value(i, "search_tokens_count", search_tokens_count)
+        
+        product_title = set(x.lower() for x in token_pattern.findall(row["product_title"]))
+        title_tokens_count = len(product_title)
+        data.set_value(i, "title_tokens_count", title_tokens_count)
+        
+        product_description = set(x.lower() for x in token_pattern.findall(row["product_description"]))
+        description_tokens_count = len(product_description)
+        data.set_value(i, "description_tokens_count", description_tokens_count)
+        
+        if title_tokens_count > 0:
+            if search_tokens_count > 0:
+                data["prefix_match_in_title"] = next(iter(search_term)) in product_title
+            if search_tokens_count > 1:
+                data["second_match_in_title"] = list(search_term)[1] in product_title
+            if (search_tokens_count > 2):
+                data["suffix_match_in_title"] = list(search_term)[search_tokens_count - 1] in product_title            
+            data.set_value(i, "search_tokens_in_title", len(search_term.intersection(product_title))/title_tokens_count)
+        if description_tokens_count > 0:
+            data.set_value(i, "search_tokens_in_description", len(search_term.intersection(product_description))/description_tokens_count)
 
-    print ("Generating custom feature took %.2f minutes." % ((time.time() - start_time) / 60.))
-    return df_dataset
+    print ("Generating custom feature took %.2f minutes." % ((time.time() - start_time) / 60.))   
 
 # Load cleaned train & test dataset.
 df_train_product_desc, df_test_product_desc = load_clean_data()
 
-# Generate addtional features.
-df_train_product_desc = generate_features(df_train_product_desc)
-df_test_product_desc = generate_features(df_test_product_desc)
+df_train_product_desc.search_term = df_train_product_desc.search_term.astype(np.str)
+df_test_product_desc.search_term = df_test_product_desc.search_term.astype(np.str)
+
+extract_text_features(df_train_product_desc)
+extract_text_features(df_test_product_desc)
 
 # Persist enriched datasets to /processed-features folder.
 df_train_product_desc.to_csv(path_processed_features + file_train_product_descriptions, index=False) 
